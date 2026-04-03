@@ -1,12 +1,7 @@
-
-
-# This file has code for a binary search tree (BST).
-#
-# Node struct in memory:
-#   0: int value (4 bytes)
+# Node struct (24 bytes):
+#   0: int val (4 bytes)
 #   8: left pointer (8 bytes)
 #  16: right pointer (8 bytes)
-#   (Total size: 24 bytes)
 
     .text
 
@@ -15,209 +10,250 @@
     .globl get
     .globl getAtMost
 
-# make_node: Makes a new node for the tree.
-#   %edi = value to store
-#   returns pointer in %rax (0 if failed)
+
+# make_node - create a new BST node with the given value
+# a0 holds the value to store
+# Returns pointer to new node in a0 (0 if allocation fails)
 make_node:
-    pushq   %rbp
-    movq    %rsp, %rbp
-	pushq   %rbx  # Save the value of rbx
-	subq    $8, %rsp  # Make stack 16-byte aligned
+    # Save return address and registers
+    addi    sp, sp, -32
+    sd      ra, 24(sp)          # save return address
+    sd      s0, 16(sp)          # save frame pointer
+    sd      s1, 8(sp)           # save s1 (we'll use it to hold val)
 
-	movl    %edi, %ebx  # Save the input value (malloc will change edi)
+    # Set up frame pointer
+    addi    s0, sp, 32
 
-	movq    $24, %rdi  # Ask malloc for 24 bytes (size of Node)
-	call    malloc
+    # Save input value
+    mv      s1, a0              # s1 = val
 
-	cmpq    $0, %rax  # If malloc failed, rax is 0
-	je      make_node_done
+    # Call malloc(24) to get memory for node
+    li      a0, 24
+    call    malloc              # malloc(24) -> a0 (or 0 if failed)
 
-	movl    %ebx, 0(%rax)  # Set node->val = value
-	movq    $0, 8(%rax)  # Set node->left = NULL
-	movq    $0, 16(%rax)  # Set node->right = NULL
+    # If malloc failed, return 0
+    beqz    a0, make_node_done
+
+    # Set node fields to value and NULL pointers
+    sw      s1, 0(a0)           # node->val = val
+    sd      zero, 8(a0)         # node->left = NULL
+    sd      zero, 16(a0)        # node->right = NULL
 
 make_node_done:
-    addq    $8, %rsp
-    popq    %rbx
-    popq    %rbp
+    # Restore registers and return
+    ld      ra, 24(sp)
+    ld      s0, 16(sp)
+    ld      s1, 8(sp)
+    addi    sp, sp, 32
     ret
 
-# insert: This function puts a value into the BST.
-# Input:  %rdi is the root node
-#         %esi is the value to add
-# Output: %rax is the root node (maybe new if tree was empty)
+
+# insert: Add a value to the BST (no duplicates)
+#   a0 = root pointer
+#   a1 = value to add
+#   returns root pointer in a0
 insert:
-    pushq   %rbp
-    movq    %rsp, %rbp
-    pushq   %rbx
-    pushq   %r12
-    subq    $8, %rsp
+    addi    sp, sp, -48
+    sd      ra, 40(sp)
+    sd      s0, 32(sp)
+    sd      s1, 24(sp)          # save root
+    sd      s2, 16(sp)          # save val
+    sd      s3, 8(sp)           # temp
 
-	movq    %rdi, %rbx  # Save the root pointer
-	movl    %esi, %r12d  # Save the value to insert
+    addi    s0, sp, 48
 
-	cmpq    $0, %rbx  # If root is NULL, make a new node
-	jne     insert_not_empty
+    mv      s1, a0              # s1 = root
+    mv      s2, a1              # s2 = val
 
-	movl    %r12d, %edi
-	call    make_node
-	jmp     insert_done
+    # If root is NULL, make a new node
+    bnez    s1, insert_not_empty
+
+    mv      a0, s2
+    call    make_node
+    j       insert_done
 
 insert_not_empty:
-	movl    0(%rbx), %ecx  # Get root->val
+    # Compare value with root->val
+    lw      t0, 0(s1)           # t0 = root->val
 
-	cmpl    %ecx, %r12d  # If value < root->val, go left
-	jge     insert_check_right
+    # If value < root->val, go left
+    blt     s2, t0, insert_go_left
 
-	movq    8(%rbx), %rdi  # Call insert on left child
-	movl    %r12d, %esi
-	call    insert
-	movq    %rax, 8(%rbx)  # Set root->left = result
-	movq    %rbx, %rax
-	jmp     insert_done
+    # If value > root->val, go right
+    bgt     s2, t0, insert_go_right
 
-insert_check_right:
-	cmpl    %ecx, %r12d
-	jle     insert_duplicate  # If value == root->val, do nothing
+    # If value == root->val, do nothing (no duplicates)
+    mv      a0, s1
+    j       insert_done
 
-	movq    16(%rbx), %rdi  # Call insert on right child
-	movl    %r12d, %esi
-	call    insert
-	movq    %rax, 16(%rbx)  # Set root->right = result
-	movq    %rbx, %rax
-	jmp     insert_done
+insert_go_left:
+    # Insert into left subtree
+    ld      a0, 8(s1)           # a0 = root->left
+    mv      a1, s2
+    call    insert
+    sd      a0, 8(s1)           # root->left = result
+    mv      a0, s1
+    j       insert_done
 
-insert_duplicate:
-	movq    %rbx, %rax  # Value already exists, return root
+insert_go_right:
+    # Insert into right subtree
+    ld      a0, 16(s1)          # a0 = root->right
+    mv      a1, s2
+    call    insert
+    sd      a0, 16(s1)          # root->right = result
+    mv      a0, s1
 
 insert_done:
-    addq    $8, %rsp
-    popq    %r12
-    popq    %rbx
-    popq    %rbp
+    ld      ra, 40(sp)
+    ld      s0, 32(sp)
+    ld      s1, 24(sp)
+    ld      s2, 16(sp)
+    ld      s3, 8(sp)
+    addi    sp, sp, 48
     ret
 
-# get: This function looks for a value in the BST.
-# Input:  %rdi is the root node
-#         %esi is the value to find
-# Output: %rax is the pointer to the node with the value, or 0 if not found
+
+# get: Find a value in the BST
+#   a0 = root pointer
+#   a1 = value to find
+#   returns pointer to node (or 0 if not found)
 get:
-    pushq   %rbp
-    movq    %rsp, %rbp
-    pushq   %rbx
-    pushq   %r12
-    subq    $8, %rsp
+    addi    sp, sp, -40
+    sd      ra, 32(sp)
+    sd      s0, 24(sp)
+    sd      s1, 16(sp)          # save root
+    sd      s2, 8(sp)           # save val
 
-	movq    %rdi, %rbx  # Save the root pointer
-	movl    %esi, %r12d  # Save the value to search for
+    addi    s0, sp, 40
 
-	cmpq    $0, %rbx  # If root is NULL, value not found
-	jne     get_not_empty
+    mv      s1, a0              # s1 = root
+    mv      s2, a1              # s2 = val
 
-	movq    $0, %rax  # Not found, return 0
-	jmp     get_done
+    # If root is NULL, return 0
+    beqz    s1, get_not_found
 
-get_not_empty:
-	movl    0(%rbx), %ecx  # Get root->val
+    lw      t0, 0(s1)           # t0 = root->val
 
-	cmpl    %ecx, %r12d  # If value == root->val, found it
-	jne     get_not_equal
+    # If found, return node
+    beq     s2, t0, get_found
 
-	movq    %rbx, %rax  # Return pointer to node
-	jmp     get_done
+    # If value < root->val, search left
+    blt     s2, t0, get_go_left
 
-get_not_equal:
-	cmpl    %ecx, %r12d
-	jge     get_go_right  # If value > root->val, go right
+    # Else, search right
+    j       get_go_right
 
-	movq    8(%rbx), %rdi  # Call get on left child
-	movl    %r12d, %esi
-	call    get
-	jmp     get_done
+get_go_left:
+    ld      a0, 8(s1)           # a0 = root->left
+    mv      a1, s2
+    call    get
+    j       get_done
 
 get_go_right:
-	movq    16(%rbx), %rdi  # Call get on right child
-	movl    %r12d, %esi
-	call    get
+    ld      a0, 16(s1)          # a0 = root->right
+    mv      a1, s2
+    call    get
+    j       get_done
+
+get_found:
+    mv      a0, s1
+    j       get_done
+
+get_not_found:
+    li      a0, 0
 
 get_done:
-    addq    $8, %rsp
-    popq    %r12
-    popq    %rbx
-    popq    %rbp
+    ld      ra, 32(sp)
+    ld      s0, 24(sp)
+    ld      s1, 16(sp)
+    ld      s2, 8(sp)
+    addi    sp, sp, 40
     ret
 
-# getAtMost_helper: This function finds the biggest value in the BST that is less than or equal to a given value.
-# Input:  %edi is the value to compare
-#         %rsi is the root node
-#         %edx is the best value found so far
-# Output: %eax is the biggest value <= input value, or the best so far
+
+# getAtMost_helper: Helper for getAtMost (not global)
+#   a0 = value (upper limit)
+#   a1 = root pointer
+#   a2 = best value found so far
+#   returns biggest value <= input, or best so far
 getAtMost_helper:
-    pushq   %rbp
-    movq    %rsp, %rbp
-    pushq   %rbx
-    pushq   %r12
-    pushq   %r13
-    subq    $8, %rsp
+    addi    sp, sp, -56
+    sd      ra, 48(sp)
+    sd      s0, 40(sp)
+    sd      s1, 32(sp)          # save val
+    sd      s2, 24(sp)          # save root
+    sd      s3, 16(sp)          # save best_so_far
+    sd      s4, 8(sp)           # temp
 
-	movl    %edi, %r12d  # Save the value to compare
-	movq    %rsi, %rbx  # Save the root pointer
-	movl    %edx, %r13d  # Save the best value so far
+    addi    s0, sp, 56
 
-	cmpq    $0, %rbx  # If root is NULL, return best value so far
-	jne     helper_not_null
+    mv      s1, a0              # s1 = val
+    mv      s2, a1              # s2 = root
+    mv      s3, a2              # s3 = best_so_far
 
-	movl    %r13d, %eax  # Return best value so far
-	jmp     helper_done
+    # If root is NULL, return best_so_far
+    beqz    s2, helper_return_best
 
-helper_not_null:
-	movl    0(%rbx), %ecx  # Get root->val
+    lw      t0, 0(s2)           # t0 = root->val
 
-	cmpl    %r12d, %ecx  # If root->val == value, found it
-	jne     helper_check_too_big
+    # If perfect match, return value
+    beq     t0, s1, helper_return_val
 
-	movl    %r12d, %eax  # Return the value
-	jmp     helper_done
+    # If root->val > value, go left
+    bgt     t0, s1, helper_go_left
 
-helper_check_too_big:
-	cmpl    %r12d, %ecx
-	jle     helper_qualifies  # If root->val < value, maybe go right
+    # If root->val <= value, update best_so_far and go right
+    mv      s3, t0              # best_so_far = root->val
 
-	movl    %r12d, %edi
-	movq    8(%rbx), %rsi  # Call on left child
-	movl    %r13d, %edx
-	call    getAtMost_helper
-	jmp     helper_done
+helper_go_right:
+    ld      a1, 16(s2)          # a1 = root->right
+    mv      a0, s1
+    mv      a2, s3
+    call    getAtMost_helper
+    j       helper_done
 
-helper_qualifies:
-	movl    %ecx, %r13d  # Update best value so far
+helper_go_left:
+    ld      a1, 8(s2)           # a1 = root->left
+    mv      a0, s1
+    mv      a2, s3
+    call    getAtMost_helper
+    j       helper_done
 
-	movl    %r12d, %edi
-	movq    16(%rbx), %rsi  # Call on right child
-	movl    %r13d, %edx
-	call    getAtMost_helper
+helper_return_val:
+    mv      a0, s1
+    j       helper_done
+
+helper_return_best:
+    mv      a0, s3
 
 helper_done:
-    addq    $8, %rsp
-    popq    %r13
-    popq    %r12
-    popq    %rbx
-    popq    %rbp
+    ld      ra, 48(sp)
+    ld      s0, 40(sp)
+    ld      s1, 32(sp)
+    ld      s2, 24(sp)
+    ld      s3, 16(sp)
+    ld      s4, 8(sp)
+    addi    sp, sp, 56
     ret
 
-# getAtMost: This is a wrapper for getAtMost_helper.
-# Input:  %edi is the value to compare
-#         %rsi is the root node
-# Output: %eax is the biggest value <= input value, or -1 if nothing found
-getAtMost:
-    pushq   %rbp
-    movq    %rsp, %rbp
-    subq    $8, %rsp
 
-	movl    $-1, %edx  # Start with best value = -1
+# getAtMost: Find biggest value <= input value
+#   a0 = value
+#   a1 = root pointer
+#   returns biggest value <= input, or -1 if none
+getAtMost:
+    addi    sp, sp, -16
+    sd      ra, 8(sp)
+    sd      s0, 0(sp)
+
+    # Start with best_so_far = -1
+    li      a2, -1
 
     call    getAtMost_helper
 
-    addq    $8, %rsp
-    popq    %rbp
+    ld      ra, 8(sp)
+    ld      s0, 0(sp)
+    addi    sp, sp, 16
     ret
+
+# End of file
