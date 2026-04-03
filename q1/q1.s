@@ -118,13 +118,13 @@ insert_done:
 #   a1 = value to find
 #   returns pointer to node (or 0 if not found)
 get:
-    addi    sp, sp, -40
-    sd      ra, 32(sp)
-    sd      s0, 24(sp)
-    sd      s1, 16(sp)          # save root
-    sd      s2, 8(sp)           # save val
+    addi    sp, sp, -32
+    sd      ra, 24(sp)
+    sd      s0, 16(sp)
+    sd      s1, 8(sp)           # save root
+    sd      s2, 0(sp)           # save val
 
-    addi    s0, sp, 40
+    addi    s0, sp, 32
 
     mv      s1, a0              # s1 = root
     mv      s2, a1              # s2 = val
@@ -163,11 +163,11 @@ get_not_found:
     li      a0, 0
 
 get_done:
-    ld      ra, 32(sp)
-    ld      s0, 24(sp)
-    ld      s1, 16(sp)
-    ld      s2, 8(sp)
-    addi    sp, sp, 40
+    ld      ra, 24(sp)
+    ld      s0, 16(sp)
+    ld      s1, 8(sp)
+    ld      s2, 0(sp)
+    addi    sp, sp, 32
     ret
 
 
@@ -177,15 +177,15 @@ get_done:
 #   a2 = best value found so far
 #   returns biggest value <= input, or best so far
 getAtMost_helper:
-    addi    sp, sp, -56
-    sd      ra, 48(sp)
-    sd      s0, 40(sp)
-    sd      s1, 32(sp)          # save val
-    sd      s2, 24(sp)          # save root
-    sd      s3, 16(sp)          # save best_so_far
-    sd      s4, 8(sp)           # temp
+    addi    sp, sp, -48
+    sd      ra, 40(sp)
+    sd      s0, 32(sp)
+    sd      s1, 24(sp)          # save val
+    sd      s2, 16(sp)          # save root
+    sd      s3, 8(sp)           # save best_so_far
+    sd      s4, 0(sp)           # temp
 
-    addi    s0, sp, 56
+    addi    s0, sp, 48
 
     mv      s1, a0              # s1 = val
     mv      s2, a1              # s2 = root
@@ -227,13 +227,13 @@ helper_return_best:
     mv      a0, s3
 
 helper_done:
-    ld      ra, 48(sp)
-    ld      s0, 40(sp)
-    ld      s1, 32(sp)
-    ld      s2, 24(sp)
-    ld      s3, 16(sp)
-    ld      s4, 8(sp)
-    addi    sp, sp, 56
+    ld      ra, 40(sp)
+    ld      s0, 32(sp)
+    ld      s1, 24(sp)
+    ld      s2, 16(sp)
+    ld      s3, 8(sp)
+    ld      s4, 0(sp)
+    addi    sp, sp, 48
     ret
 
 
@@ -256,4 +256,3 @@ getAtMost:
     addi    sp, sp, 16
     ret
 
-# End of file
